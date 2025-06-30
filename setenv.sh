@@ -1,2 +1,2 @@
-export CLIENT_ID=''
-export CLIENT_SECRET=''
+export SPOTIFY_CLIENT_ID=''
+export SPOTIFY_CLIENT_SECRET=''

@@ -6,14 +6,14 @@ import os
 
 # Set your Spotify API credentials as environment variables
 # CLIENT_ID: Your Spotify application's client ID
-CLIENT_ID = os.environ.get('SPOTIPY_CLIENT_ID')
+CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID')
 # CLIENT_SECRET: Your Spotify application's client secret
-CLIENT_SECRET = os.environ.get('SPOTIPY_CLIENT_SECRET')
+CLIENT_SECRET = os.environ.get('SPOTIFY_CLIENT_SECRET')
 # REDIRECT_URI: The URI to redirect to after the user grants permission
 REDIRECT_URI='http://127.0.0.1:9090'
 
 if not CLIENT_ID or not CLIENT_SECRET:
-    raise EnvironmentError("Please set the SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET environment variables.")
+    raise EnvironmentError("Please set the SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables.")
 
 # Set up the Spotify authentication using the Spotipy library
 # This requires setting up a Spotify application and obtaining the necessary credentials
@@ -35,21 +35,29 @@ def get_podcast_episodes(podcast_id, limit=50):
     """
     episodes = []
     offset = 0  # Start from the first episode
-    
+
+    episode_details = []
     while True:
         # Get a page of episodes from the Spotify API
         results = sp.show_episodes(podcast_id, limit=limit, offset=offset)
 
-        # Add the episode URIs to the list
+        # Add the episode details to the list
         for episode in results['items']:
-            episodes.append(episode['uri'])
-        
+            episode_details.append({
+                'uri': episode['uri'],
+                'release_date': episode.get('release_date', episode.get('available_at', '1900-01-01'))
+            })
+
         # Check if there are more episodes to fetch
         if results['next']:
             offset += limit  # Update the offset for the next batch of episodes
         else:
             break  # No more episodes, exit the loop
-    
+
+    # Sort episodes by release date
+    episodes = sorted(episode_details, key=lambda x: x['release_date'])
+    episodes = [episode['uri'] for episode in episodes]
+
     return episodes
 
 # Function to create a new playlist for the user
