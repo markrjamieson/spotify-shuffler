@@ -15,7 +15,14 @@ This script creates a Spotify playlist containing all episodes of a selected pod
     *   Note the Client ID and Client Secret.
     *   Set the Redirect URI to `http://127.0.0.1:9090`.
 
-2.  **Set environment variables:**
+2.  **Activate virtual environment (optional but recommended):**
+
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Set environment variables:**
     *   Create a file named `setenv.sh` in the same directory as the script.
     *   Add the following lines to `setenv.sh`, replacing `your_client_id` and `your_client_secret` with your actual Client ID and Client Secret:
 
@@ -30,7 +37,7 @@ This script creates a Spotify playlist containing all episodes of a selected pod
     chmod +x setenv.sh
     ```
 
-3.  **Install dependencies:**
+4.  **Install dependencies:**
 
     ```bash
     pip install spotipy

@@ -1,8 +1,9 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import json
-
+import logging
 import os
+from datetime import datetime
 
 # Set your Spotify API credentials as environment variables
 # CLIENT_ID: Your Spotify application's client ID
@@ -15,6 +16,18 @@ REDIRECT_URI='http://127.0.0.1:9090'
 if not CLIENT_ID or not CLIENT_SECRET:
     raise EnvironmentError("Please set the SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables.")
 
+# Set up logging to a file
+log_filename = f"spotify_shuffler_{datetime.now().strftime('%Y%m%d')}.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename),
+        logging.StreamHandler()  # Also log to console
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # Set up the Spotify authentication using the Spotipy library
 # This requires setting up a Spotify application and obtaining the necessary credentials
 scope = "playlist-modify-public playlist-modify-private user-library-read"
@@ -22,6 +35,14 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
                                                 client_secret=CLIENT_SECRET,
                                                 redirect_uri=REDIRECT_URI,
                                                 scope=scope))
+
+# Log successful authentication
+try:
+    user_info = sp.current_user()
+    logger.info(f"Successfully authenticated with Spotify API. User: {user_info['id']} ({user_info.get('display_name', 'N/A')})")
+except Exception as e:
+    logger.error(f"Failed to authenticate with Spotify API: {str(e)}")
+    raise
 
 # Function to gather episodes from a podcast feed given a podcast ID
 def get_podcast_episodes(podcast_id, limit=50):
@@ -71,7 +92,9 @@ def create_playlist(user_id, playlist_name):
         str: The ID of the newly created playlist.
     """
     playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
-    return playlist['id']
+    playlist_id = playlist['id']
+    logger.info(f"Created new playlist: '{playlist_name}' (ID: {playlist_id})")
+    return playlist_id
 
 # Function to add episodes to a playlist in chunks
 def add_episodes_to_playlist(playlist_id, episode_uris):
@@ -81,11 +104,21 @@ def add_episodes_to_playlist(playlist_id, episode_uris):
         playlist_id (str): The Spotify ID of the playlist.
         episode_uris (list): A list of Spotify episode URIs to add to the playlist.
     """
+    if not episode_uris:
+        logger.info(f"No new episodes to add to playlist (ID: {playlist_id})")
+        return
+    
+    total_episodes = len(episode_uris)
+    logger.info(f"Updating playlist (ID: {playlist_id}) - Adding {total_episodes} new episode(s)")
+    
     for i in range(0, len(episode_uris), 100):
         chunk = episode_uris[i:i+100]
         # Add the current chunk to the playlist
         sp.playlist_add_items(playlist_id, chunk)
         print(f"Added {len(chunk)} episodes to the playlist.")
+        logger.info(f"Added {len(chunk)} episode(s) to playlist (ID: {playlist_id}) - Chunk {i//100 + 1}")
+    
+    logger.info(f"Successfully updated playlist (ID: {playlist_id}) - Total new episodes added: {total_episodes}")
 
 # Main function to orchestrate the playlist creation and updating process
 def main():
@@ -126,9 +159,12 @@ def main():
 
     # Get the selected podcast's ID (Spotify URI)
     podcast_id = results['shows']['items'][selection-1]['uri']
+    selected_podcast_name = results['shows']['items'][selection-1]['name']
+    logger.info(f"Selected podcast: '{selected_podcast_name}' (ID: {podcast_id})")
 
     # Gather podcast episodes using the podcast ID
     episodes = get_podcast_episodes(podcast_id)
+    logger.info(f"Retrieved {len(episodes)} episode(s) from podcast '{selected_podcast_name}'")
 
     # Get the selected podcast's name for use in the default playlist name
     podcast_name = results['shows']['items'][selection-1]['name']
@@ -152,6 +188,8 @@ def main():
     if playlist_id is None:
         # Create a new playlist if one doesn't exist
         playlist_id = create_playlist(user_id, playlist_name)
+    else:
+        logger.info(f"Found existing playlist: '{playlist_name}' (ID: {playlist_id})")
     
     # Get existing episodes in playlist to avoid duplicates
     existing_episodes = []
@@ -167,9 +205,11 @@ def main():
                 offset += limit
             else:
                 break
+        logger.info(f"Found {len(existing_episodes)} existing episode(s) in playlist '{playlist_name}' (ID: {playlist_id})")
 
     # Identify new episodes that are not already in the playlist
     new_episodes = [ep for ep in episodes if ep not in existing_episodes]
+    logger.info(f"Identified {len(new_episodes)} new episode(s) to add to playlist '{playlist_name}'")
     # Add only the new episodes to the playlist
     add_episodes_to_playlist(playlist_id, new_episodes)
 
