@@ -93,7 +93,7 @@ export async function getValidAccessToken() {
   return refreshed.access_token;
 }
 
-async function api(accessToken, path, options = {}) {
+async function api(accessToken, path, options = {}, retriesLeft = 5) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -102,6 +102,11 @@ async function api(accessToken, path, options = {}) {
       ...(options.headers || {}),
     },
   });
+  if (res.status === 429 && retriesLeft > 0) {
+    const retryAfter = Number(res.headers.get("retry-after")) || 1;
+    await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+    return api(accessToken, path, options, retriesLeft - 1);
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Spotify API ${path} failed: ${res.status} ${text}`);
