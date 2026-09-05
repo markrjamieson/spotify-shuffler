@@ -1,0 +1,9 @@
+setenv.sh
+.cache
+*.log
+venv/
+web/node_modules
+web/.next
+web/.env
+web/.env.local
+web/.vercel
