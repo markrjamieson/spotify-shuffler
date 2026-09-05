@@ -23,12 +23,24 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
+function formatUpdatedAt(isoString) {
+  if (!isoString) return "never";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "never";
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [shufflers, setShufflers] = useState([]);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(null); // id of in-flight action
   const [message, setMessage] = useState("");
 
@@ -42,22 +54,30 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleSearch(e) {
-    e.preventDefault();
-    setMessage("");
-    if (!query.trim()) return;
-    setBusy("search");
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "search_failed");
-      setResults(data.shows);
-    } catch (err) {
-      setMessage(`Search failed: ${err.message}`);
-    } finally {
-      setBusy(null);
+  // Auto-search as the user types, debounced.
+  useEffect(() => {
+    if (!query.trim()) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      return;
     }
-  }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (res.ok) {
+          setSuggestions(data.shows);
+          setSuggestOpen(true);
+        }
+      } catch {
+        // Ignore — the user can keep typing.
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   async function handleCreate(show) {
     setMessage("");
@@ -71,7 +91,8 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "create_failed");
       setShufflers(data.shufflers);
-      setResults(null);
+      setSuggestions([]);
+      setSuggestOpen(false);
       setQuery("");
       setMessage(
         `Created "${data.shuffler.playlistName}" — added ${data.addedCount} episode(s).`
@@ -168,16 +189,31 @@ export default function Home() {
               <div>
                 <div style={{ fontWeight: 600 }}>{s.playlistName}</div>
                 <div style={{ fontSize: "0.85rem", color: "#8b949e" }}>
-                  {s.episodeCount} episode(s) as of last update
+                  {s.episodeCount} episode(s) &middot; last updated{" "}
+                  {formatUpdatedAt(s.updatedAt)}
                 </div>
               </div>
-              <button
-                style={btnStyle}
-                disabled={busy === s.playlistId}
-                onClick={() => handleUpdate(s)}
-              >
-                {busy === s.playlistId ? "Updating..." : "Update"}
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <a
+                  href={`https://open.spotify.com/playlist/${s.playlistId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <button
+                    type="button"
+                    style={{ ...btnStyle, background: "transparent", color: "#8b949e", border: "1px solid #30363d" }}
+                  >
+                    Open
+                  </button>
+                </a>
+                <button
+                  style={btnStyle}
+                  disabled={busy === s.playlistId}
+                  onClick={() => handleUpdate(s)}
+                >
+                  {busy === s.playlistId ? "Updating..." : "Update"}
+                </button>
+              </div>
             </div>
           ))}
         </section>
@@ -185,51 +221,72 @@ export default function Home() {
 
       <section>
         <h2>Create a new shuffler playlist</h2>
-        <form onSubmit={handleSearch} style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ position: "relative" }}>
           <input
             style={inputStyle}
-            placeholder="Podcast name"
+            placeholder="Start typing a podcast name..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => suggestions.length > 0 && setSuggestOpen(true)}
+            onBlur={() => setTimeout(() => setSuggestOpen(false), 150)}
           />
-          <button style={btnStyle} disabled={busy === "search"}>
-            {busy === "search" ? "..." : "Search"}
-          </button>
-        </form>
 
-        {results && (
-          <div style={{ marginTop: "1rem" }}>
-            {results.length === 0 && <p>No podcasts found.</p>}
-            {results.map((show) => (
-              <div
-                key={show.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "0.75rem",
-                  border: "1px solid #30363d",
-                  borderRadius: 8,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600 }}>{show.name}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#8b949e" }}>
-                    {show.publisher}
-                  </div>
-                </div>
-                <button
-                  style={btnStyle}
-                  disabled={busy === show.id}
-                  onClick={() => handleCreate(show)}
-                >
-                  {busy === show.id ? "Creating..." : "Create"}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+          {suggestOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                right: 0,
+                background: "#161b22",
+                border: "1px solid #30363d",
+                borderRadius: 8,
+                zIndex: 10,
+                overflow: "hidden",
+              }}
+            >
+              {searching && (
+                <div style={{ padding: "0.75rem", color: "#8b949e" }}>Searching...</div>
+              )}
+              {!searching && suggestions.length === 0 && (
+                <div style={{ padding: "0.75rem", color: "#8b949e" }}>No podcasts found.</div>
+              )}
+              {!searching &&
+                suggestions.map((show) => (
+                  <button
+                    key={show.id}
+                    type="button"
+                    disabled={busy === show.id}
+                    onMouseDown={(e) => e.preventDefault()} // keep focus so onBlur doesn't fire first
+                    onClick={() => handleCreate(show)}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      width: "100%",
+                      padding: "0.75rem",
+                      background: "transparent",
+                      border: "none",
+                      borderBottom: "1px solid #30363d",
+                      color: "#e6edf3",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span>
+                      <div style={{ fontWeight: 600 }}>{show.name}</div>
+                      <div style={{ fontSize: "0.85rem", color: "#8b949e" }}>
+                        {show.publisher}
+                      </div>
+                    </span>
+                    <span style={{ fontSize: "0.85rem", color: "#8b949e" }}>
+                      {busy === show.id ? "Creating..." : "Create"}
+                    </span>
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
