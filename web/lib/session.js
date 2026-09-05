@@ -84,3 +84,9 @@ export function upsertShuffler(shuffler) {
   writeShufflers(shufflers);
   return shufflers;
 }
+
+export function removeShuffler(playlistId) {
+  const shufflers = readShufflers().filter((s) => s.playlistId !== playlistId);
+  writeShufflers(shufflers);
+  return shufflers;
+}
