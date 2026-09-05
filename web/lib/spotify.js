@@ -184,6 +184,33 @@ export async function createPlaylist(accessToken, userId, name) {
   return playlist.id;
 }
 
+export async function getAllPlaylists(accessToken) {
+  const playlists = [];
+  let offset = 0;
+  const limit = 50;
+  while (true) {
+    const data = await api(
+      accessToken,
+      `/me/playlists?limit=${limit}&offset=${offset}`
+    );
+    for (const p of data.items) {
+      playlists.push({ id: p.id, name: p.name, trackCount: p.tracks.total });
+    }
+    if (data.next) {
+      offset += limit;
+    } else {
+      break;
+    }
+  }
+  return playlists;
+}
+
+export async function deletePlaylist(accessToken, playlistId) {
+  await api(accessToken, `/playlists/${playlistId}/followers`, {
+    method: "DELETE",
+  });
+}
+
 export async function getPlaylistEpisodeUris(accessToken, playlistId) {
   const uris = new Set();
   let offset = 0;

@@ -104,6 +104,49 @@ export default function Home() {
     }
   }
 
+  async function handleSync() {
+    setMessage("");
+    setBusy("sync");
+    try {
+      const res = await fetch("/api/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "sync_failed");
+      setShufflers(data.shufflers);
+      setMessage(`Sync complete — found ${data.addedCount} new shuffler playlist(s).`);
+    } catch (err) {
+      setMessage(`Sync failed: ${err.message}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRemove(shuffler) {
+    if (
+      !window.confirm(
+        `Delete "${shuffler.playlistName}" from Spotify and remove it here? This can't be undone.`
+      )
+    ) {
+      return;
+    }
+    setMessage("");
+    setBusy(shuffler.playlistId);
+    try {
+      const res = await fetch("/api/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playlistId: shuffler.playlistId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "remove_failed");
+      setShufflers(data.shufflers);
+      setMessage(`Removed "${shuffler.playlistName}".`);
+    } catch (err) {
+      setMessage(`Remove failed: ${err.message}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleUpdate(shuffler) {
     setMessage("");
     setBusy(shuffler.playlistId);
@@ -170,10 +213,19 @@ export default function Home() {
         </p>
       )}
 
-      {shufflers.length > 0 && (
-        <section style={{ marginBottom: "2rem" }}>
+      <section style={{ marginBottom: shufflers.length > 0 ? "2rem" : "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2>Your shuffler playlists</h2>
-          {shufflers.map((s) => (
+          <button
+            style={{ ...btnStyle, background: "transparent", color: "#8b949e", border: "1px solid #30363d" }}
+            disabled={busy === "sync"}
+            onClick={handleSync}
+          >
+            {busy === "sync" ? "Syncing..." : "Sync"}
+          </button>
+        </div>
+        {shufflers.length > 0 &&
+          shufflers.map((s) => (
             <div
               key={s.playlistId}
               style={{
@@ -213,11 +265,17 @@ export default function Home() {
                 >
                   {busy === s.playlistId ? "Updating..." : "Update"}
                 </button>
+                <button
+                  style={{ ...btnStyle, background: "transparent", color: "#f85149", border: "1px solid #30363d" }}
+                  disabled={busy === s.playlistId}
+                  onClick={() => handleRemove(s)}
+                >
+                  Remove
+                </button>
               </div>
             </div>
           ))}
-        </section>
-      )}
+      </section>
 
       <section>
         <h2>Create a new shuffler playlist</h2>
