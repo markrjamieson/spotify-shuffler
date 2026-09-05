@@ -8,6 +8,7 @@ import {
 import { upsertShuffler } from "../../../lib/session";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request) {
   const accessToken = await getValidAccessToken();
@@ -20,20 +21,24 @@ export async function POST(request) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
 
-  const episodes = await getAllEpisodes(accessToken, showId);
-  const existingUris = await getPlaylistEpisodeUris(accessToken, playlistId);
-  const newUris = episodes.map((e) => e.uri).filter((uri) => !existingUris.has(uri));
-  await addEpisodesToPlaylist(accessToken, playlistId, newUris);
+  try {
+    const episodes = await getAllEpisodes(accessToken, showId);
+    const existingUris = await getPlaylistEpisodeUris(accessToken, playlistId);
+    const newUris = episodes.map((e) => e.uri).filter((uri) => !existingUris.has(uri));
+    await addEpisodesToPlaylist(accessToken, playlistId, newUris);
 
-  const shuffler = {
-    showId,
-    showName,
-    playlistId,
-    playlistName,
-    episodeCount: episodes.length,
-    updatedAt: new Date().toISOString(),
-  };
-  const shufflers = upsertShuffler(shuffler);
+    const shuffler = {
+      showId,
+      showName,
+      playlistId,
+      playlistName,
+      episodeCount: episodes.length,
+      updatedAt: new Date().toISOString(),
+    };
+    const shufflers = upsertShuffler(shuffler);
 
-  return NextResponse.json({ shuffler, addedCount: newUris.length, shufflers });
+    return NextResponse.json({ shuffler, addedCount: newUris.length, shufflers });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
