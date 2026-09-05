@@ -1,5 +1,8 @@
 # Spotify Shuffler (web)
 
+**Live app:** https://spotify-shuffler-silk.vercel.app
+(Vercel project: `marks-projects-04d174cb/spotify-shuffler`)
+
 Next.js app version of the shuffler scripts. Log in with Spotify in the
 browser, search for a podcast, create a "Shuffler" playlist with all its
 episodes, and revisit later to update it with new episodes with one click.
@@ -44,6 +47,9 @@ the local and production URLs need to be listed there.
 
 ## Deploying to Vercel
 
+The live app above is already set up this way — for a fresh deploy (e.g. a
+fork), or to redeploy after changing project settings:
+
 1. Push this repo to GitHub (if not already).
 2. In Vercel: **New Project** → import the repo.
 3. Set **Root Directory** to `web` (the Next.js app doesn't live at the repo root).
@@ -55,7 +61,15 @@ the local and production URLs need to be listed there.
    in the Spotify dashboard (the old one leaked into git history — see below),
    and save the new Client ID/Secret there. No redeploy needed.
 
+Redeploying the existing project after a code change:
+
+```bash
+cd web
+vercel deploy --prod --scope marks-projects-04d174cb
+```
+
 The client ID/secret previously committed to git history (in `../setenv.sh`)
-are used as the initial `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` env var
-values so the app works out of the box — replace them via `/settings` once
-you've rotated the secret in the Spotify dashboard.
+were used as the initial `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` env var
+values so the app worked out of the box — **rotate the secret in the Spotify
+dashboard and replace it via `/settings` on the live app** before relying on
+this for real use.
